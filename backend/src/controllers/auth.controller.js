@@ -1,7 +1,23 @@
 import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
-import bcrypt from "bcryptjs";
 import cloudinary from "../lib/cloudinary.js";
+
+// Helper function for Vigenère cipher encryption
+const vigenereEncrypt = (text, key) => {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const keyLength = key.length;
+
+  return text
+    .split("")
+    .map((char, index) => {
+      const charIndex = alphabet.indexOf(char);
+      if (charIndex === -1) return char; // Non-alphabetic characters remain unchanged
+
+      const keyCharIndex = alphabet.indexOf(key[index % keyLength]);
+      return alphabet[(charIndex + keyCharIndex) % alphabet.length];
+    })
+    .join("");
+};
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -18,17 +34,16 @@ export const signup = async (req, res) => {
 
     if (user) return res.status(400).json({ message: "Email already exists" });
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const key = "mySecretKey"; // Vigenère key (must be securely stored in a real-world app)
+    const encryptedPassword = vigenereEncrypt(password, key);
 
     const newUser = new User({
       fullName,
       email,
-      password: hashedPassword,
+      password: encryptedPassword,
     });
 
     if (newUser) {
-      // generate jwt token here
       generateToken(newUser._id, res);
       await newUser.save();
 
@@ -47,6 +62,23 @@ export const signup = async (req, res) => {
   }
 };
 
+// Helper function for Vigenère cipher decryption
+const vigenereDecrypt = (text, key) => {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const keyLength = key.length;
+
+  return text
+    .split("")
+    .map((char, index) => {
+      const charIndex = alphabet.indexOf(char);
+      if (charIndex === -1) return char; // Non-alphabetic characters remain unchanged
+
+      const keyCharIndex = alphabet.indexOf(key[index % keyLength]);
+      return alphabet[(charIndex - keyCharIndex + alphabet.length) % alphabet.length];
+    })
+    .join("");
+};
+
 export const login = async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -56,8 +88,10 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) {
+    const key = "mySecretKey"; // Same key used for encryption
+    const decryptedPassword = vigenereDecrypt(user.password, key);
+
+    if (password !== decryptedPassword) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
