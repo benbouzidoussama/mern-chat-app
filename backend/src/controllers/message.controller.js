@@ -103,22 +103,29 @@ export const sendMessage = async (req, res) => {
 
     await newMessage.save();
 
-    // Déchiffrez le texte pour l'envoyer en clair via WebSocket
+    // Déchiffrez le texte pour l'envoi via WebSocket
     const decryptedMessage = {
       ...newMessage._doc,
       text: encryptedText ? caesarDecipher(encryptedText, shift) : null,
     };
 
     const receiverSocketId = getReceiverSocketId(receiverId);
+    const senderSocketId = getReceiverSocketId(senderId); // Récupère le socket de l'expéditeur
+
+    // Envoyer le message déchiffré au destinataire (si connecté)
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", decryptedMessage);
     }
 
-    // Renvoyez également le message déchiffré à l'expéditeur
+    // Envoyer le message déchiffré à l'expéditeur (pour éviter le texte chiffré)
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("newMessage", decryptedMessage);
+    }
+
+    // Réponse HTTP pour l'expéditeur
     res.status(201).json(decryptedMessage);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
